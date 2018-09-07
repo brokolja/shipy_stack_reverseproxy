@@ -1,0 +1,56 @@
+version: '2.4' # Cant use 3+ because it does not support resource-limits without swarm-mode: https://github.com/docker/compose/issues/4513
+
+services:
+  reverseproxy:
+    mem_limit: ${SHIPY_STACK_SERVICE_1_MEMORY_LIMIT:-1000000000}
+    build:
+      context: ./
+      dockerfile: Dockerfile.reverseproxy
+      args:
+        VERSION: ${SHIPY_STACK_SERVICE_1_VERSION:-alpine}
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    expose:
+      - "8080"
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - reverseproxy:/mytraefik
+    networks:
+      reverseproxy:
+        aliases:
+         # alias with pattern PROJECTNAME_SERVICENAME must be present on all networks
+         - ${COMPOSE_PROJECT_NAME:?err}_reverseproxy
+         # reverseproxy is allowed only once per server so alias can be hardcoded too
+         - reverseproxy
+         - traefik
+    labels:
+      # shipy labels must be present on all services
+      # shipy.stack.id must be equal the name of the repository
+      - "shipy.stack.id=${COMPOSE_PROJECT_NAME:?err}"
+      - "shipy.stack.type=${SHIPY_STACK_TYPE:?err}"
+      - "shipy.stack.name=${SHIPY_STACK_NAME:?err}"
+      - "shipy.stack.domains=${SHIPY_STACK_DOMAINS:?err}"
+      - "shipy.stack.updated=${SHIPY_STACK_UPDATED:?err}"
+      - "shipy.stack.json=${SHIPY_STACK_JSON:?err}"
+      - "shipy.stack.service.number=1"
+      - "shipy.stack.service.name=reverseproxy"
+      - "shipy.stack.service.version=${SHIPY_STACK_SERVICE_1_VERSION:-alpine}"
+    #command: --logLevel=DEBUG
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 10s
+      timeout: 30s
+      retries: 3
+      start_period: 1s
+
+volumes:
+  reverseproxy:
+
+networks:
+  reverseproxy:
+    external: true
+    name: reverseproxy # named networks will not get removed on container update/removal
+      
+  
